@@ -11,7 +11,7 @@ struct GradDesc<:AbstractOptimizer
     end
 end
 
-@inline function optimize!(params::AbstractVector, grad::AbstractVector, opt::GradDesc, f::Function)
+@inline function minimize!(params::AbstractVector, grad::AbstractVector, opt::GradDesc, f::Function)
     params .-= opt.lr.*grad
 end
 
@@ -38,7 +38,7 @@ end
 # Alternative Constructors
 Momentum(lr::Number, mom::Number, nparams::Number) = Momentum(lr, mom, zeros(nparams))
 
-@inline function optimize!(params::AbstractVector, grad::AbstractVector, opt::Momentum, f::Function)
+@inline function minimize!(params::AbstractVector, grad::AbstractVector, opt::Momentum, f::Function)
     opt.v .= opt.mom.* opt.v .+ opt.lr.*grad # Accumulate momentum
     params .-= opt.v # Apply momentum
 end
@@ -70,7 +70,7 @@ end
 
 Adam(params::Vector ;lr::Number = 0.001, beta1::Number = 0.9, beta2::Number = 0.999, epsilon::Number = 1e-8) = Adam(lr, beta1, beta2, epsilon, zeros(length(params)), zeros(length(params)))
 
-@inline function optimize!(params::AbstractVector, grad::AbstractVector, opt::Adam, f::Function)
+@inline function minimize!(params::AbstractVector, grad::AbstractVector, opt::Adam, f::Function)
     # Update betat (contains beta1,2^t)
     opt.betat[1] *= opt.beta1
     opt.betat[2] *= opt.beta2
@@ -105,7 +105,7 @@ mutable struct GradDescAdaptive<:AbstractOptimizer
     end
 end
 
-@inline function optimize!(params::AbstractVector, grad::AbstractVector, opt::GradDescAdaptive, f::Function)
+@inline function minimize!(params::AbstractVector, grad::AbstractVector, opt::GradDescAdaptive, f::Function)
     # Line Search
     F1 = f(params-opt.lr/opt.adaptstep*grad)
     F2 = f(params-opt.lr*opt.adaptstep*grad)

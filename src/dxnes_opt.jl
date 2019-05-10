@@ -1,4 +1,4 @@
-function optimize(f::Function, x0::Vector, hyp_par::Dxnes; prefunc::Function = x->nothing, workerpool::AbstractWorkerPool = default_worker_pool())
+function minimize(f::Function, x0::Vector{T}, hyp_par::Dxnes; prefunc::Function = x->nothing, workerpool::AbstractWorkerPool = default_worker_pool()) where {T}
     # Preallocate variables
     x_mean = copy(x0) # Mean of the MV Gaussian distribution
     best_x = copy(x0) # Overall best parameters
@@ -8,27 +8,27 @@ function optimize(f::Function, x0::Vector, hyp_par::Dxnes; prefunc::Function = x
     nevals = 0
     half_population_size = floor(Int, hyp_par.population_size/2)
     B = I
-    Z = Array{Float64}(undef, length_x, 2*half_population_size)
-    Zsorted = Array{Float64}(undef, length_x, 2*half_population_size)
-    X = Array{Float64}(undef, length_x, 2*half_population_size)
-    xviews = Vector{AbstractVector}(undef, 2*half_population_size)
+    Z = Array{T}(undef, length_x, 2*half_population_size)
+    Zsorted = Array{T}(undef, length_x, 2*half_population_size)
+    X = Array{T}(undef, length_x, 2*half_population_size)
+    xviews = Vector{AbstractVector{T}}(undef, 2*half_population_size)
 
     # Learning rates
-    etaMu = 1.0
-    etaSigmaset = [1.0, 0.5*(1.0 + half_population_size/(half_population_size + length_x)),  1.0 + half_population_size/(half_population_size + length_x)]
-    etaBset = [(half_population_size + length_x)/(half_population_size + length_x^2 + 50) .* min(1, sqrt(2*half_population_size/length_x)),  half_population_size/ (half_population_size+ length_x^2 + 50)]
+    etaMu = one(T)
+    etaSigmaset = T[1.0, 0.5*(1.0 + half_population_size/(half_population_size + length_x)),  1.0 + half_population_size/(half_population_size + length_x)]
+    etaBset = T[(half_population_size + length_x)/(half_population_size + length_x^2 + 50) .* min(1, sqrt(2*half_population_size/length_x)),  half_population_size/ (half_population_size+ length_x^2 + 50)]
 
     # Utility function
-    weights = max.(0.0, log.(half_population_size + 1) .- log.(1:half_population_size*2))
-    uRank = weights./(sum(weights)) .- 1/(half_population_size*2)
-    alpha = (0.9+0.15*log(length_x)) #*min(1.0, 2*half_population_size/length_x) # This is only in the paper, not in the matlab implementation
+    weights = max.(zero(T), log.(T(half_population_size + 1)) .- log.(1:T(half_population_size*2)))
+    uRank = weights./(sum(weights)) .- one(T)/(half_population_size*2)
+    alpha::T = (0.9+0.15*log(length_x)) #*min(1.0, 2*half_population_size/length_x) # This is only in the paper, not in the matlab implementation
 
     # Evolution path
-    base = sqrt(length_x) * (1 - 1/(4*length_x) + 1/(21*length_x^2));
-    mueff = sum(weights)^2/sum(abs2, weights)
-    csigma = (mueff + 2.0) / (length_x + mueff + 5.0) / sqrt(length_x);
-    psigma = zeros(length_x)
-    GM = zeros(length_x, length_x)
+    base::T = sqrt(length_x) * (1 - 1/(4*length_x) + 1/(21*length_x^2));
+    mueff::T = sum(weights)^2/sum(abs2, weights)
+    csigma::T = (mueff + 2.0) / (length_x + mueff + 5.0) / sqrt(length_x);
+    psigma = zeros(T, length_x)
+    GM = zeros(T, length_x, length_x)
     GB = Symmetric(GM) # used at the very end
 
     # Main loop
@@ -59,24 +59,24 @@ function optimize(f::Function, x0::Vector, hyp_par::Dxnes; prefunc::Function = x
 
         # Update evolution path
         sumUZ = Zsorted*uRank
-        psigma .= (1 - csigma) .* psigma .+ sqrt( csigma * (2 - csigma) * mueff ) .* sumUZ
-        rate = norm(psigma) / base
+        psigma .= (one(T) - csigma) .* psigma .+ sqrt( csigma * (2 - csigma) * mueff ) .* sumUZ
+        rate::T = norm(psigma) / base
 
         # Calculate the gradients with the detection of the center's movement
         # and adapt the learning rates by the identification of the search phases
-        fill!(GM, 0.0)
-        if rate >= 1.0
+        fill!(GM, zero(T))
+        if rate >= one(T)
             expZ = exp.(alpha * sqrt.(vec(sum(abs2, Zsorted; dims = 1))))
             uDist = (weights .* expZ) ./ dot(weights, expZ) .- 1/(half_population_size*2)
             Gdelta = Zsorted*uDist
             GM .= (uDist' .* Zsorted) * Zsorted' - sum(uDist) * LinearAlgebra.I
             etaB = etaBset[1]
             etaSigma = etaSigmaset[1]
-        elseif rate < 1.0
+        elseif rate < one(T)
             Gdelta = sumUZ
             GM .= (uRank' .* Zsorted) * Zsorted' - sum(uRank) * LinearAlgebra.I
             etaB = etaBset[2]
-            if rate > 0.1
+            if rate > T(0.1)
                 etaSigma = etaSigmaset[2]
             else
                 etaSigma = etaSigmaset[3]
@@ -84,7 +84,7 @@ function optimize(f::Function, x0::Vector, hyp_par::Dxnes; prefunc::Function = x
         end
 
         # Update the parameters
-        x_mean += etaMu * hyp_par.std* B * Gdelta
+        x_mean .+= etaMu * T(hyp_par.std)* B * Gdelta
         Gsigma = tr(GM)/length_x
 
         # This is actually called GB in the paper and matlab, but we reuse GM as GM will not be used anymore
@@ -120,17 +120,17 @@ function optimize(f::Function, x0::Vector, hyp_par::Dxnes; prefunc::Function = x
 end
 
 
-function sample_population!(X, Z, x_mean, std, B)
+function sample_population!(X, Z, x_mean::Vector{T}, std, B) where {T}
     # Makes code more readable
     n = size(X, 1)
     Npop = size(X, 2)
     Nhalfpop = Int(Npop/2)
 
     # Sample from the distribution
-    temp = randn(n, Nhalfpop)
+    temp = randn(T, n, Nhalfpop)
     Z[:, 1:Nhalfpop] .= temp
-    Z[:, Nhalfpop+1:end] .= -1.0 .* temp
+    Z[:, Nhalfpop+1:end] .= -one(T) .* temp
 
-    X .= std .* (B*Z) .+ x_mean
+    X .= T(std) .* (B*Z) .+ x_mean
     return nothing
 end

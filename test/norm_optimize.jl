@@ -3,7 +3,7 @@
 
 # Function and initial guess
 @everywhere f(x) = norm([i*x[i] for i = 1:length(x)])
-x0 = ones(100)
+x0 = ones(Float32, 100)
 
 
 ############################## Evol Strat #########################
@@ -22,7 +22,7 @@ es.npersist = 3
 es.printiter = 40
 
 # Run opimization
-@time xopt, costlog = optimize(f, x0, es)
+@time xopt, costlog = minimize(f, x0, es)
 
 ############################## Dxnes #########################
 
@@ -31,7 +31,7 @@ dxnes.maxiter = 3000
 dxnes.population_size = 10
 dxnes.printiter = 40
 
-@time xopt, costlog = optimize(f, x0, dxnes)
+@time xopt, costlog = minimize(f, x0, dxnes)
 
 ############################## CMA ES #########################
 
@@ -41,4 +41,4 @@ cma_es.population_size = 10
 cma_es.printiter = 40
 
 # Run opimization
-@time xopt, costlog = optimize(f, x0, cma_es)
+@time xopt, costlog = minimize(f, x0, cma_es)

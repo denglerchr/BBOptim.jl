@@ -17,6 +17,6 @@ export Dxnes
 include("cmaes_hyp.jl")
 include("cmaes_opt.jl")
 export CMAES
-export optimize
+export minimize
 
 end

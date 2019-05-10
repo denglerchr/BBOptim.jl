@@ -2,7 +2,7 @@
 # Added some heuristics:
 # Exploration/Exploitation: directions with large df will persist in the seed_id
 # Use f(x) also, instead of only the perturbed ones?
-function optimize(f::Function, x0::Vector, hyp_par::EvolStrat; prefunc::Function = x->nothing, workerpool::AbstractWorkerPool = default_worker_pool())
+function minimize(f::Function, x0::Vector{T}, hyp_par::EvolStrat; prefunc::Function = x->nothing, workerpool::AbstractWorkerPool = default_worker_pool()) where {T}
 
     # Preallocate variables
     x = copy(x0) # Current best parameters
@@ -15,7 +15,7 @@ function optimize(f::Function, x0::Vector, hyp_par::EvolStrat; prefunc::Function
     #Creating remote channels for eventual parallel execution TODO, can this parallel stuff be iplemented smarter? pmap?
     vec_workers = workerpool.workers
     isempty(vec_workers) ? vec_workers = workers() : nothing
-    fitness_channel = RemoteChannel(()->Channel{Tuple{Int, Float64, Float64, Int}}(length(vec_workers)+4)) #holds the fitnesses and the corresponding seeds
+    fitness_channel = RemoteChannel(()->Channel{Tuple{Int, T, T, Int}}(length(vec_workers)+4)) #holds the fitnesses and the corresponding seeds
     seed_channel = RemoteChannel(()->Channel{UInt32}(length(vec_workers)+4)) #holds the seed_id used by the workers to generate gaussian noise
 
     # Main loop
@@ -29,7 +29,7 @@ function optimize(f::Function, x0::Vector, hyp_par::EvolStrat; prefunc::Function
         nevals += ceil(Int, hyp_par.population_size/2)*2
 
         # Apply Optimizer
-        optimize!(x, grad, hyp_par.optimizer, f)
+        minimize!(x, grad, hyp_par.optimizer, f)
         costlog[iter] = f(x)
 
         # Check if we have new best parameters
@@ -66,7 +66,7 @@ function calc_grad(f::Function, x::Vector{T}, hyp_par::EvolStrat, best_seeds::Ve
 
     nremotecalls = ceil(Int, hyp_par.population_size/2)
     seeds = Array{UInt32}(undef, nremotecalls)
-    dfs = Array{Float64}(undef, nremotecalls)
+    dfs = Array{T}(undef, nremotecalls)
 
     # Create problem on every worker
     for (i, p) in enumerate(vec_workers)
@@ -113,7 +113,7 @@ function calc_grad(f::Function, x::Vector{T}, hyp_par::EvolStrat, best_seeds::Ve
 end
 
 
-function worker_es(fitness_channel::RemoteChannel, seed_channel::RemoteChannel, x::Vector, f::Function, std::Number)
+function worker_es(fitness_channel::RemoteChannel, seed_channel::RemoteChannel, x::Vector{T}, f::Function, std::Number) where {T}
     #start work
     while true
         seed_id = take!(seed_channel)
@@ -122,11 +122,11 @@ function worker_es(fitness_channel::RemoteChannel, seed_channel::RemoteChannel, 
             return nothing
         else
             #generate random seed and calculate noise
-            noise = std*randn(Random.seed!(seed_id), length(x))
+            noise = std*randn(Random.seed!(seed_id), T, length(x))
 
             #evaluate fitness
-            F1 = f(x+noise)
-            F2 = f(x-noise)
+            F1::T = f(x+noise)
+            F2::T = f(x-noise)
 
             #push results to channel
             put!(fitness_channel,(myid(), F1, F2, seed_id))
