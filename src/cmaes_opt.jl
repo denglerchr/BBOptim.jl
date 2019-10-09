@@ -79,7 +79,7 @@ function minimize(f::Function, x0::Vector{T}, hyp_par::CMAES; prefunc::Function 
         if counteval - eigenval > hyp_par.population_size/(c1 + cmu)/N/10 #to achieve O(N^2)
             eigenval = counteval
             D, B = eigen(C) #eigen decomposition
-            D = sqrt.(D) #D contains standard deviations now
+            D = sqrt.( max.(eps(T), D) ) #D contains standard deviations now
             invsqrtC = B * Diagonal(1 ./ D) * B'
         end
         cost_new = mean(arfitness)
