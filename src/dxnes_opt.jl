@@ -1,4 +1,4 @@
-function minimize(f::Function, x0::Vector{T}, hyp_par::Dxnes; prefunc::Function = x->nothing, workerpool::AbstractWorkerPool = default_worker_pool()) where {T}
+function minimize(f::Function, x0::Vector{T}, hyp_par::Dxnes; prefunc::Function = x->nothing, workerpool::AbstractWorkerPool = default_worker_pool()) where {T<:Real}
     # Preallocate variables
     x_mean = copy(x0) # Mean of the MV Gaussian distribution
     best_x = copy(x0) # Overall best parameters
@@ -35,7 +35,7 @@ function minimize(f::Function, x0::Vector{T}, hyp_par::Dxnes; prefunc::Function 
     for iter = 1:hyp_par.maxiter
 
         # Run preiteration-function, can be used e.g. for extra logging, running validation set, virtual batch normalization etc.
-        prefunc(x_mean)
+        prefunc(best_x)
 
         # Sample individuals (updates X)
         sample_population!(X, Z, x_mean, hyp_par.std, B)
