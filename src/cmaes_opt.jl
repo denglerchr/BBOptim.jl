@@ -63,10 +63,10 @@ function minimize(f::Function, x0::Vector{T}, hyp_par::CMAES; prefunc::Function 
 
         #Cumulation: Update evolution paths
         ps = (1 - cs) * ps + sqrt(cs * (2 - cs) * mueff) * invsqrtC * (xmean - xold) / hyp_par.std
-        hsig = sum(ps.^2) / (1 - (1 - cs)^(2 * counteval/hyp_par.population_size))/N < 2 + 4/(N + 1)
-        pc = (1 - cc) * pc + hsig * sqrt(cc * (2 - cc) * mueff) * (xmean - xold) / hyp_par.std
+        hsig = sum(x->x^2, ps) / (1 - (1 - cs)^(2 * counteval/hyp_par.population_size))/N < 2 + 4/(N + 1) # either 1 or 0
 
         #Adapt covariance matrix C
+        pc = (1 - cc) * pc + hsig * sqrt(cc * (2 - cc) * mueff) * (xmean - xold) / hyp_par.std
         artemp[:, 1] .= sqrt(c1).*pc
         @inbounds artemp[:, 2:mu+1] .= sqrt(cmu/hyp_par.std).*arx[:, arindex[1:mu]].*sqrt.(weights)'
         cscale::T = (1 - c1 - cmu + c1*(1 - hsig)*cc*(2 - cc))
